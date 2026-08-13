@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+.venv/
+.DS_Store
+*_sublist_A5.pdf
+*.xlsx
+sublist_A5_mau.pdf

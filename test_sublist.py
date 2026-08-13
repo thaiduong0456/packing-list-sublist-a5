@@ -1,9 +1,10 @@
 from io import BytesIO
+from decimal import Decimal
 
 import pymupdf
 from openpyxl import Workbook
 
-from sublist import build_sublist_pdf, parse_packing_list
+from sublist import Carton, Item, build_sublist_pdf, decimal_text, excel_text, parse_packing_list
 
 
 def _sample_file():
@@ -33,3 +34,23 @@ def test_sample_packing_list_creates_two_a5_pages():
     assert round(doc[0].rect.width, 1) == 419.5
     assert round(doc[0].rect.height, 1) == 595.3
     assert "PKG0002" in doc[1].get_text()
+
+
+def test_integer_zeroes_are_never_removed():
+    assert excel_text(10.0) == "10"
+    assert excel_text(20.0) == "20"
+    assert decimal_text(Decimal("100")) == "100"
+    assert decimal_text(Decimal("250")) == "250"
+    assert decimal_text(Decimal("2.500")) == "2.5"
+
+
+def test_long_carton_is_complete_and_total_is_250():
+    quantities = [12, 12, 15, 15, 15, 8, 15, 8, 15, 10, 6, 6, 10, 12, 5, 10, 10, 8, 12, 12, 12, 12, 10]
+    assert sum(quantities) == 250
+    items = [Item(f"SKU-{n:02d}", f"4890000000{n:03d}", str(qty)) for n, qty in enumerate(quantities, 1)]
+    carton = Carton("15/48", "OR1173", "po38535", "24.95", "PGKEC7HHGPOL5740002", items)
+    doc = pymupdf.open(stream=build_sublist_pdf([carton]), filetype="pdf")
+    text = doc[0].get_text()
+    assert doc.page_count == 1
+    assert "SKU-01" in text and "SKU-23" in text
+    assert text.strip().endswith("250")

@@ -57,12 +57,20 @@ def excel_text(value, number_format: str = "") -> str:
     if isinstance(value, int):
         text = str(value)
     elif isinstance(value, float):
-        text = format(Decimal(str(value)), "f").rstrip("0").rstrip(".")
+        text = decimal_text(Decimal(str(value)))
     else:
         return str(value).strip()
     if number_format and set(number_format) <= {"0"} and len(number_format) > len(text):
         return text.zfill(len(number_format))
     return text
+
+
+def decimal_text(value: Decimal) -> str:
+    """Format a decimal without ever removing significant integer zeroes."""
+    text = format(value, "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text or "0"
 
 
 def _find_header(ws):
@@ -151,7 +159,9 @@ def build_sublist_pdf(cartons: list[Carton]) -> bytes:
     margin = 7 * mm
     content_w = page_w - 2 * margin
     for carton in cartons:
-        y = page_h - 7 * mm
+        item_count = len(carton.items)
+        compact = item_count > 24
+        y = page_h - (5 if compact else 7) * mm
         label_x = margin + 74 * mm
         value_x = page_w - margin
         meta = [
@@ -161,29 +171,39 @@ def build_sublist_pdf(cartons: list[Carton]) -> bytes:
             ("GW", f"{carton.gross_weight} KG" if carton.gross_weight and "kg" not in carton.gross_weight.lower() else carton.gross_weight),
         ]
         for label, value in meta:
-            c.setFont("Helvetica-Bold", 10.5)
+            meta_font = 9 if compact else 10.5
+            c.setFont("Helvetica-Bold", meta_font)
             c.drawRightString(label_x, y, label)
-            c.setFont("Helvetica", _fit_font(value, 53 * mm, 10.5))
+            c.setFont("Helvetica", _fit_font(value, 53 * mm, meta_font, 5.5))
             c.drawRightString(value_x, y, value)
-            y -= 7 * mm
-        c.setFont("Helvetica-Bold", 10.5)
+            y -= (5.2 if compact else 7) * mm
+        c.setFont("Helvetica-Bold", 9 if compact else 10.5)
         c.drawRightString(label_x + 8 * mm, y, "Packing Code #")
-        c.setFont("Helvetica", _fit_font(carton.packaging_code, 58 * mm, 10.5))
+        c.setFont("Helvetica", _fit_font(carton.packaging_code, 58 * mm, 9 if compact else 10.5, 5.5))
         c.drawRightString(value_x, y, carton.packaging_code)
-        y -= 12 * mm
+        y -= (8 if compact else 12) * mm
 
         display_rows = max(15, len(carton.items))
-        available_h = y - 19 * mm
-        row_h = min(7.2 * mm, max(4.5 * mm, (available_h - 8 * mm) / display_rows))
-        font_size = min(10, max(6.2, row_h / mm * 1.25))
-        styles = ParagraphStyle("cell", fontName="Helvetica", fontSize=font_size, leading=font_size + 1, alignment=TA_CENTER)
+        bottom_reserve = 13 * mm
+        header_h = (5.5 if compact else 7) * mm
+        available_h = y - bottom_reserve
+        row_h = min(7.2 * mm, (available_h - header_h) / display_rows)
+        if row_h < 2.5 * mm:
+            raise ValueError(
+                f"Carton {carton.carton} có {item_count} dòng, vượt khả năng hiển thị rõ trên một trang A5."
+            )
+        font_size = min(10, max(4.5, row_h / mm * 1.55))
+        styles = ParagraphStyle(
+            "cell", fontName="Helvetica", fontSize=font_size,
+            leading=max(font_size + 0.4, row_h - 1), alignment=TA_CENTER,
+        )
         header_style = ParagraphStyle("head", parent=styles, fontName="Helvetica-Bold")
         data = [[Paragraph("Item No.", header_style), Paragraph("EAN", header_style), Paragraph("QTY", header_style)]]
         for item in carton.items:
             data.append([Paragraph(item.sku, styles), Paragraph(item.ean, styles), Paragraph(item.qty, styles)])
         for _ in range(display_rows - len(carton.items)):
             data.append(["", "", ""])
-        table = Table(data, colWidths=[55 * mm, 43 * mm, content_w - 98 * mm], rowHeights=[7 * mm] + [row_h] * display_rows)
+        table = Table(data, colWidths=[55 * mm, 43 * mm, content_w - 98 * mm], rowHeights=[header_h] + [row_h] * display_rows)
         table.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e7e7e7")),
             ("GRID", (0, 0), (-1, -1), 0.65, colors.black),
@@ -193,11 +213,11 @@ def build_sublist_pdf(cartons: list[Carton]) -> bytes:
             ("TOPPADDING", (0, 0), (-1, -1), 0),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
         ]))
-        table_h = 7 * mm + row_h * display_rows
+        table_h = header_h + row_h * display_rows
         table.wrapOn(c, content_w, table_h)
         table.drawOn(c, margin, y - table_h)
         total = sum((_qty_number(item.qty) for item in carton.items), Decimal(0))
-        total_text = format(total, "f").rstrip("0").rstrip(".") or "0"
+        total_text = decimal_text(total)
         c.setFont("Helvetica-Bold", 11)
         c.drawRightString(page_w - margin - 20 * mm, y - table_h - 7 * mm, total_text)
         c.showPage()

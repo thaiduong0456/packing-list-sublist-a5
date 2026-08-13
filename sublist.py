@@ -209,7 +209,9 @@ def build_sublist_pdf(cartons: list[Carton]) -> bytes:
         font_size = min(10, max(4.5, row_h / mm * 1.55))
         styles = ParagraphStyle(
             "cell", fontName="Helvetica", fontSize=font_size,
-            leading=max(font_size + 0.4, row_h - 1), alignment=TA_CENTER,
+            # Keep the text box close to the glyph height so ReportLab can
+            # center it vertically inside the full table row.
+            leading=font_size + 1, alignment=TA_CENTER,
         )
         header_style = ParagraphStyle("head", parent=styles, fontName="Helvetica-Bold")
         data = [[Paragraph("Item No.", header_style), Paragraph("EAN", header_style), Paragraph("QTY", header_style)]]
@@ -225,8 +227,8 @@ def build_sublist_pdf(cartons: list[Carton]) -> bytes:
             ("ALIGN", (0, 0), (-1, -1), "CENTER"),
             ("LEFTPADDING", (0, 0), (-1, -1), 1.5),
             ("RIGHTPADDING", (0, 0), (-1, -1), 1.5),
-            ("TOPPADDING", (0, 0), (-1, -1), 1),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+            ("TOPPADDING", (0, 0), (-1, -1), 1.5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0.5),
         ]))
         table_h = header_h + row_h * display_rows
         table.wrapOn(c, content_w, table_h)

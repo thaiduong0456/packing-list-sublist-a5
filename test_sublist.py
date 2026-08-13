@@ -87,3 +87,15 @@ def test_pagination_boundaries_and_carton_labels():
     assert [page.carton for page in pages] == ["15-1/48", "15-2/48", "15-3/48"]
     assert [len(page.items) for page in pages] == [25, 25, 1]
     assert [sum(int(item.qty) for item in page.items) for page in pages] == [25, 25, 1]
+    assert [page.show_total for page in pages] == [False, False, True]
+    assert [page.total_qty for page in pages] == ["51", "51", "51"]
+
+
+def test_split_carton_shows_full_total_on_last_page_only():
+    carton = _carton_with_rows(26)
+    doc = pymupdf.open(stream=build_sublist_pdf([carton]), filetype="pdf")
+    assert doc.page_count == 2
+    first_text = doc[0].get_text().strip().splitlines()
+    last_text = doc[1].get_text().strip().splitlines()
+    assert first_text[-1] == "1"  # Last item's QTY, no carton total below the table.
+    assert last_text[-1] == "26"  # Full-carton total, not the last-page subtotal of 1.

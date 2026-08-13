@@ -31,6 +31,8 @@ class Carton:
     gross_weight: str
     packaging_code: str
     items: list[Item] = field(default_factory=list)
+    show_total: bool = True
+    total_qty: str = ""
 
 
 ALIASES = {
@@ -166,6 +168,7 @@ def paginate_cartons(cartons: list[Carton], page_size: int = MAX_ITEMS_PER_PAGE)
     pages: list[Carton] = []
     for carton in cartons:
         chunks = [carton.items[i:i + page_size] for i in range(0, len(carton.items), page_size)] or [[]]
+        carton_total = decimal_text(sum((_qty_number(item.qty) for item in carton.items), Decimal(0)))
         for part, items in enumerate(chunks, start=1):
             display_carton = carton.carton if len(chunks) == 1 else _continued_carton_number(carton.carton, part)
             pages.append(Carton(
@@ -175,6 +178,8 @@ def paginate_cartons(cartons: list[Carton], page_size: int = MAX_ITEMS_PER_PAGE)
                 gross_weight=carton.gross_weight,
                 packaging_code=carton.packaging_code,
                 items=list(items),
+                show_total=part == len(chunks),
+                total_qty=carton_total,
             ))
     return pages
 
@@ -240,10 +245,13 @@ def build_sublist_pdf(cartons: list[Carton]) -> bytes:
             # center it vertically inside the full table row.
             leading=font_size + 1, alignment=TA_CENTER,
         )
+        item_style = ParagraphStyle(
+            "item-cell", parent=styles, alignment=0,
+        )
         header_style = ParagraphStyle("head", parent=styles, fontName="Helvetica-Bold")
         data = [[Paragraph("Item No.", header_style), Paragraph("EAN", header_style), Paragraph("QTY", header_style)]]
         for item in carton.items:
-            data.append([Paragraph(item.sku, styles), Paragraph(item.ean, styles), Paragraph(item.qty, styles)])
+            data.append([Paragraph(item.sku, item_style), Paragraph(item.ean, styles), Paragraph(item.qty, styles)])
         for _ in range(display_rows - len(carton.items)):
             data.append(["", "", ""])
         table = Table(data, colWidths=[55 * mm, 43 * mm, content_w - 98 * mm], rowHeights=[header_h] + [row_h] * display_rows)
@@ -252,18 +260,22 @@ def build_sublist_pdf(cartons: list[Carton]) -> bytes:
             ("GRID", (0, 0), (-1, -1), 0.65, colors.black),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("ALIGN", (0, 1), (0, -1), "LEFT"),
             ("LEFTPADDING", (0, 0), (-1, -1), 1.5),
             ("RIGHTPADDING", (0, 0), (-1, -1), 1.5),
+            ("LEFTPADDING", (0, 1), (0, -1), 3 * mm),
             ("TOPPADDING", (0, 0), (-1, -1), 1.5),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 0.5),
         ]))
         table_h = header_h + row_h * display_rows
         table.wrapOn(c, content_w, table_h)
         table.drawOn(c, margin, y - table_h)
-        total = sum((_qty_number(item.qty) for item in carton.items), Decimal(0))
-        total_text = decimal_text(total)
-        c.setFont("Helvetica-Bold", 11)
-        c.drawRightString(page_w - margin - 20 * mm, y - table_h - 7 * mm, total_text)
+        if carton.show_total:
+            total_text = carton.total_qty or decimal_text(
+                sum((_qty_number(item.qty) for item in carton.items), Decimal(0))
+            )
+            c.setFont("Helvetica-Bold", 11)
+            c.drawRightString(page_w - margin - 20 * mm, y - table_h - 7 * mm, total_text)
         c.showPage()
     c.save()
     return output.getvalue()

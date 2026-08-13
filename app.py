@@ -6,7 +6,7 @@ from pathlib import Path
 import pymupdf
 import streamlit as st
 
-from sublist import build_sublist_pdf, parse_packing_list
+from sublist import build_sublist_pdf, paginate_cartons, parse_packing_list
 
 
 st.set_page_config(page_title="Packing List → Sublist A5", page_icon="📦", layout="centered")
@@ -30,7 +30,8 @@ if uploaded:
         st.error(f"Không thể xử lý file: {exc}")
         st.stop()
 
-    st.success(f"Đã tạo {len(cartons)} carton / {len(cartons)} trang A5.")
+    page_count = len(paginate_cartons(cartons))
+    st.success(f"Đã tạo {len(cartons)} carton / {page_count} trang A5.")
     st.download_button(
         "Tải xuống Sublist PDF A5",
         pdf_bytes,

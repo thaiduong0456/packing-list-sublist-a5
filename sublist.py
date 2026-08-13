@@ -44,6 +44,8 @@ ALIASES = {
     "weight": ("weight (kg)", "gross weight", "gw", "重量"),
 }
 
+MAX_ITEMS_PER_PAGE = 25
+
 
 def _normalized(value) -> str:
     return " ".join(str(value or "").replace("\n", " ").strip().lower().split())
@@ -152,13 +154,38 @@ def _qty_number(value: str):
         return Decimal(0)
 
 
+def _continued_carton_number(carton_number: str, part: int) -> str:
+    """Turn 15/48 into 15-1/48 while preserving other carton formats."""
+    if "/" in carton_number:
+        current, total = carton_number.split("/", 1)
+        return f"{current}-{part}/{total}"
+    return f"{carton_number}-{part}"
+
+
+def paginate_cartons(cartons: list[Carton], page_size: int = MAX_ITEMS_PER_PAGE) -> list[Carton]:
+    pages: list[Carton] = []
+    for carton in cartons:
+        chunks = [carton.items[i:i + page_size] for i in range(0, len(carton.items), page_size)] or [[]]
+        for part, items in enumerate(chunks, start=1):
+            display_carton = carton.carton if len(chunks) == 1 else _continued_carton_number(carton.carton, part)
+            pages.append(Carton(
+                carton=display_carton,
+                or_no=carton.or_no,
+                ref_no=carton.ref_no,
+                gross_weight=carton.gross_weight,
+                packaging_code=carton.packaging_code,
+                items=list(items),
+            ))
+    return pages
+
+
 def build_sublist_pdf(cartons: list[Carton]) -> bytes:
     output = BytesIO()
     c = canvas.Canvas(output, pagesize=A5, pageCompression=1)
     page_w, page_h = A5
     margin = 7 * mm
     content_w = page_w - 2 * margin
-    for carton in cartons:
+    for carton in paginate_cartons(cartons):
         item_count = len(carton.items)
         compact = item_count > 24
         y = page_h - (5 if compact else 7) * mm

@@ -4,7 +4,7 @@ from decimal import Decimal
 import pymupdf
 from openpyxl import Workbook
 
-from sublist import Carton, Item, build_sublist_pdf, decimal_text, excel_text, parse_packing_list
+from sublist import Carton, Item, build_sublist_pdf, decimal_text, excel_text, paginate_cartons, parse_packing_list
 
 
 def _sample_file():
@@ -65,3 +65,25 @@ def test_long_reference_wraps_without_losing_content():
     text = doc[0].get_text()
     for ref in ("po38534", "po38535", "po38536", "po38537", "po38538"):
         assert ref in text
+
+
+def _carton_with_rows(count: int) -> Carton:
+    return Carton("15/48", "OR1173", "po38535", "24.95", "PKG001", [
+        Item(f"SKU-{number:02d}", f"4890000000{number:03d}", "1")
+        for number in range(1, count + 1)
+    ])
+
+
+def test_pagination_boundaries_and_carton_labels():
+    expected = {25: 1, 26: 2, 50: 2, 51: 3}
+    for row_count, page_count in expected.items():
+        pages = paginate_cartons([_carton_with_rows(row_count)])
+        assert len(pages) == page_count
+        assert all(len(page.items) <= 25 for page in pages)
+        doc = pymupdf.open(stream=build_sublist_pdf([_carton_with_rows(row_count)]), filetype="pdf")
+        assert doc.page_count == page_count
+
+    pages = paginate_cartons([_carton_with_rows(51)])
+    assert [page.carton for page in pages] == ["15-1/48", "15-2/48", "15-3/48"]
+    assert [len(page.items) for page in pages] == [25, 25, 1]
+    assert [sum(int(item.qty) for item in page.items) for page in pages] == [25, 25, 1]

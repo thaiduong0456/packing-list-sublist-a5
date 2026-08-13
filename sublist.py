@@ -275,7 +275,9 @@ def build_sublist_pdf(cartons: list[Carton]) -> bytes:
                 sum((_qty_number(item.qty) for item in carton.items), Decimal(0))
             )
             c.setFont("Helvetica-Bold", 11)
-            c.drawRightString(page_w - margin - 20 * mm, y - table_h - 7 * mm, total_text)
+            qty_left = margin + 98 * mm
+            qty_width = content_w - 98 * mm
+            c.drawCentredString(qty_left + qty_width / 2, y - table_h - 7 * mm, total_text)
         c.showPage()
     c.save()
     return output.getvalue()

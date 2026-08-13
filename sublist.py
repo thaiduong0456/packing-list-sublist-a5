@@ -162,26 +162,40 @@ def build_sublist_pdf(cartons: list[Carton]) -> bytes:
         item_count = len(carton.items)
         compact = item_count > 24
         y = page_h - (5 if compact else 7) * mm
-        label_x = margin + 74 * mm
-        value_x = page_w - margin
         meta = [
             ("Carton #", carton.carton),
             ("OR #", carton.or_no.replace("_", " ")),
             ("Ref #", carton.ref_no),
             ("GW", f"{carton.gross_weight} KG" if carton.gross_weight and "kg" not in carton.gross_weight.lower() else carton.gross_weight),
         ]
-        for label, value in meta:
-            meta_font = 9 if compact else 10.5
-            c.setFont("Helvetica-Bold", meta_font)
-            c.drawRightString(label_x, y, label)
-            c.setFont("Helvetica", _fit_font(value, 53 * mm, meta_font, 5.5))
-            c.drawRightString(value_x, y, value)
-            y -= (5.2 if compact else 7) * mm
-        c.setFont("Helvetica-Bold", 9 if compact else 10.5)
-        c.drawRightString(label_x + 8 * mm, y, "Packing Code #")
-        c.setFont("Helvetica", _fit_font(carton.packaging_code, 58 * mm, 9 if compact else 10.5, 5.5))
-        c.drawRightString(value_x, y, carton.packaging_code)
-        y -= (8 if compact else 12) * mm
+        meta.append(("Packing Code #", carton.packaging_code))
+        meta_font = 9 if compact else 10.5
+        meta_leading = meta_font + 1.8
+        label_style = ParagraphStyle(
+            "meta-label", fontName="Helvetica-Bold", fontSize=meta_font,
+            leading=meta_leading, alignment=0,
+        )
+        value_style = ParagraphStyle(
+            "meta-value", fontName="Helvetica", fontSize=meta_font,
+            leading=meta_leading, alignment=0, splitLongWords=True,
+        )
+        meta_data = [
+            [Paragraph(label, label_style), Paragraph(value or "", value_style)]
+            for label, value in meta
+        ]
+        meta_table = Table(meta_data, colWidths=[32 * mm, content_w - 32 * mm])
+        meta_table.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (0, -1), 0),
+            ("RIGHTPADDING", (0, 0), (0, -1), 3 * mm),
+            ("LEFTPADDING", (1, 0), (1, -1), 0),
+            ("RIGHTPADDING", (1, 0), (1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 1.2 * mm),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 1.2 * mm),
+        ]))
+        _, meta_h = meta_table.wrap(content_w, page_h)
+        meta_table.drawOn(c, margin, y - meta_h)
+        y -= meta_h + (5 if compact else 8) * mm
 
         display_rows = max(15, len(carton.items))
         bottom_reserve = 13 * mm
@@ -208,10 +222,11 @@ def build_sublist_pdf(cartons: list[Carton]) -> bytes:
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e7e7e7")),
             ("GRID", (0, 0), (-1, -1), 0.65, colors.black),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 2),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 2),
-            ("TOPPADDING", (0, 0), (-1, -1), 0),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 1.5),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 1.5),
+            ("TOPPADDING", (0, 0), (-1, -1), 1),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
         ]))
         table_h = header_h + row_h * display_rows
         table.wrapOn(c, content_w, table_h)

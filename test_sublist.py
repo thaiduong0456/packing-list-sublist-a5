@@ -54,3 +54,14 @@ def test_long_carton_is_complete_and_total_is_250():
     assert doc.page_count == 1
     assert "SKU-01" in text and "SKU-23" in text
     assert text.strip().endswith("250")
+
+
+def test_long_reference_wraps_without_losing_content():
+    long_ref = "po38534 / po38535 / po38536 / po38537 / po38538"
+    carton = Carton("12/48", "OR1174", long_ref, "24.65", "PGKEC53HJEHR8470003", [
+        Item("TP-WST-R06-BKR-00", "4895227934032", "10")
+    ])
+    doc = pymupdf.open(stream=build_sublist_pdf([carton]), filetype="pdf")
+    text = doc[0].get_text()
+    for ref in ("po38534", "po38535", "po38536", "po38537", "po38538"):
+        assert ref in text

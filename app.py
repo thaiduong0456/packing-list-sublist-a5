@@ -12,6 +12,7 @@ from sublist import build_sublist_pdf, paginate_cartons, parse_packing_list
 st.set_page_config(page_title="Packing List → Sublist A5", page_icon="📦", layout="centered")
 st.title("Packing List → Sublist A5")
 st.caption("Tạo một trang sublist A5 cho mỗi carton, sẵn sàng để in ở 100% / Actual size.")
+st.caption("Phiên bản 2026-08-14.2 · KEC OR + nhãn trang 1/4-1")
 
 sample_path = Path(__file__).with_name("1.Packinglist_Total_HK_4pcs.xlsx")
 st.download_button(

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from decimal import Decimal
 from io import BytesIO
+import re
 from typing import BinaryIO
 
 from openpyxl import load_workbook
@@ -49,6 +50,19 @@ ALIASES = {
 }
 
 MAX_ITEMS_PER_PAGE = 25
+
+
+def sublist_download_name(cartons: list[Carton], fallback_stem: str = "Packing_List") -> str:
+    """Build e.g. SG-403_VN -> SG_Sublist_SG_403.pdf."""
+    shipping_mark = next((carton.kec_or.strip() for carton in cartons if carton.kec_or.strip()), "")
+    if not shipping_mark:
+        safe_fallback = re.sub(r"[^A-Za-z0-9]+", "_", fallback_stem).strip("_") or "Packing_List"
+        return f"{safe_fallback}_Sublist.pdf"
+
+    kec_code = shipping_mark.rsplit("_", 1)[0]
+    safe_code = re.sub(r"[^A-Za-z0-9]+", "_", kec_code).strip("_")
+    country = safe_code.split("_", 1)[0] or "XX"
+    return f"{country}_Sublist_{safe_code}.pdf"
 
 
 def _normalized(value) -> str:

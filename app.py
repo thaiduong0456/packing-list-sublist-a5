@@ -6,13 +6,13 @@ from pathlib import Path
 import pymupdf
 import streamlit as st
 
-from sublist import build_sublist_pdf, paginate_cartons, parse_packing_list
+from sublist import build_sublist_pdf, paginate_cartons, parse_packing_list, sublist_download_name
 
 
 st.set_page_config(page_title="Packing List → Sublist A5", page_icon="📦", layout="centered")
 st.title("Packing List → Sublist A5")
 st.caption("Tạo một trang sublist A5 cho mỗi carton, sẵn sàng để in ở 100% / Actual size.")
-st.caption("Phiên bản 2026-08-14.2 · KEC OR + nhãn trang 1/4-1")
+st.caption("Phiên bản 2026-08-14.3 · Tên file theo KEC OR")
 
 sample_path = Path(__file__).with_name("1.Packinglist_Total_HK_4pcs.xlsx")
 st.download_button(
@@ -36,7 +36,7 @@ if uploaded:
     st.download_button(
         "Tải xuống Sublist PDF A5",
         pdf_bytes,
-        file_name=f"{uploaded.name.rsplit('.', 1)[0]}_sublist_A5.pdf",
+        file_name=sublist_download_name(cartons, uploaded.name.rsplit('.', 1)[0]),
         mime="application/pdf",
         type="primary",
     )

@@ -33,6 +33,7 @@ class Carton:
     items: list[Item] = field(default_factory=list)
     show_total: bool = True
     total_qty: str = ""
+    kec_or: str = ""
 
 
 ALIASES = {
@@ -44,6 +45,7 @@ ALIASES = {
     "carton": ("carton#", "carton no", "carton number", "箱号"),
     "packaging": ("packaging code", "packing code", "包装条形码"),
     "weight": ("weight (kg)", "gross weight", "gw", "重量"),
+    "shipping_mark": ("shipping mark", "shipmark", "shippingmark"),
 }
 
 MAX_ITEMS_PER_PAGE = 25
@@ -126,6 +128,7 @@ def parse_packing_list(source: str | BinaryIO) -> list[Carton]:
                 ref_no=excel_text(values.get("ref_no").value) if values.get("ref_no") else "",
                 gross_weight=excel_text(values.get("weight").value) if values.get("weight") else "",
                 packaging_code=excel_text(values["packaging"].value, values["packaging"].number_format),
+                kec_or=excel_text(values.get("shipping_mark").value) if values.get("shipping_mark") else "",
             )
             cartons.append(current)
         if not sku:
@@ -157,10 +160,10 @@ def _qty_number(value: str):
 
 
 def _continued_carton_number(carton_number: str, part: int) -> str:
-    """Turn 15/48 into 15-1/48 while preserving other carton formats."""
+    """Turn 15/48 into 15/48-1 so the physical carton number stays intact."""
     if "/" in carton_number:
         current, total = carton_number.split("/", 1)
-        return f"{current}-{part}/{total}"
+        return f"{current}/{total}-{part}"
     return f"{carton_number}-{part}"
 
 
@@ -180,6 +183,7 @@ def paginate_cartons(cartons: list[Carton], page_size: int = MAX_ITEMS_PER_PAGE)
                 items=list(items),
                 show_total=part == len(chunks),
                 total_qty=carton_total,
+                kec_or=carton.kec_or,
             ))
     return pages
 
@@ -196,7 +200,8 @@ def build_sublist_pdf(cartons: list[Carton]) -> bytes:
         y = page_h - (5 if compact else 7) * mm
         meta = [
             ("Carton #", carton.carton),
-            ("OR #", carton.or_no.replace("_", " ")),
+            ("TPLG OR #", carton.or_no.replace("_", " ")),
+            ("KEC OR #", carton.kec_or.replace("_", " ")),
             ("Ref #", carton.ref_no),
             ("GW", f"{carton.gross_weight} KG" if carton.gross_weight and "kg" not in carton.gross_weight.lower() else carton.gross_weight),
         ]

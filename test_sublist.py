@@ -27,6 +27,7 @@ def test_sample_packing_list_creates_two_a5_pages():
     assert [carton.carton for carton in cartons] == ["1/2", "2/2"]
     assert [len(carton.items) for carton in cartons] == [1, 3]
     assert cartons[1].items[-1].ean == "4894961081903"
+    assert cartons[0].kec_or == ""
     assert sum(int(item.qty) for item in cartons[1].items) == 3
 
     doc = pymupdf.open(stream=build_sublist_pdf(cartons), filetype="pdf")
@@ -67,6 +68,22 @@ def test_long_reference_wraps_without_losing_content():
         assert ref in text
 
 
+def test_shipping_mark_maps_to_kec_or():
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["OR No.", "Ref No.", "SKU#", "BarCode/UPC", "Quantity", "Carton#", "Packaging code", "Weight (KG)", "Shipping Mark"])
+    ws.append(["OR1179", "po38603", "SKU-01", "4890000000001", 2, "1/4", "PKG001", 18.35, "SG-403_VN"])
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    cartons = parse_packing_list(output)
+    assert cartons[0].or_no == "OR1179"
+    assert cartons[0].kec_or == "SG-403_VN"
+    text = pymupdf.open(stream=build_sublist_pdf(cartons), filetype="pdf")[0].get_text()
+    assert "TPLG OR #" in text and "OR1179" in text
+    assert "KEC OR #" in text and "SG-403 VN" in text
+
+
 def _carton_with_rows(count: int) -> Carton:
     return Carton("15/48", "OR1173", "po38535", "24.95", "PKG001", [
         Item(f"SKU-{number:02d}", f"4890000000{number:03d}", "1")
@@ -84,7 +101,7 @@ def test_pagination_boundaries_and_carton_labels():
         assert doc.page_count == page_count
 
     pages = paginate_cartons([_carton_with_rows(51)])
-    assert [page.carton for page in pages] == ["15-1/48", "15-2/48", "15-3/48"]
+    assert [page.carton for page in pages] == ["15/48-1", "15/48-2", "15/48-3"]
     assert [len(page.items) for page in pages] == [25, 25, 1]
     assert [sum(int(item.qty) for item in page.items) for page in pages] == [25, 25, 1]
     assert [page.show_total for page in pages] == [False, False, True]
